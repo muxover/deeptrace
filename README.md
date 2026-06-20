@@ -2,7 +2,7 @@
 
 <div align="center">
 
-[![CI](https://github.com/muxover/DeepTrace/actions/workflows/ci.yml/badge.svg)](https://github.com/muxover/DeepTrace/actions/workflows/ci.yml)
+[![CI](https://github.com/muxover/deeptrace/actions/workflows/ci.yml/badge.svg)](https://github.com/muxover/deeptrace/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 **Deep, evidence-based debugging skill for AI agents.**
@@ -196,8 +196,8 @@ Licensed under the [MIT](LICENSE) license.
 
 ## Links
 
-- Repository: https://github.com/muxover/DeepTrace
-- Issues: https://github.com/muxover/DeepTrace/issues
+- Repository: https://github.com/muxover/deeptrace
+- Issues: https://github.com/muxover/deeptrace/issues
 
 ---
 

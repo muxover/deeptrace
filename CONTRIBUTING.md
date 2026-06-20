@@ -7,7 +7,7 @@ DeepTrace is a set of Markdown agent skills plus a few helper scripts. If you ca
 Clone the repo. There is no build step. Every skill is a `SKILL.md` file under `skills/`.
 
 ```bash
-git clone https://github.com/muxover/DeepTrace.git
+git clone https://github.com/muxover/deeptrace.git
 cd DeepTrace
 ```
 
