@@ -26,3 +26,27 @@ def test_detect_go_build(runner, tmp_path):
     (tmp_path / "go.mod").write_text("module demo\n", encoding="utf-8")
     plans = runner.detect(str(tmp_path))
     assert ["go", "build", "./..."] in plans["build"]
+
+
+def test_with_race_injects_flag_for_go(runner):
+    assert runner.with_race(["go", "test", "./..."]) == ["go", "test", "-race", "./..."]
+    assert runner.with_race(["cargo", "test"]) is None
+
+
+def test_race_dry_run_shows_go_race(runner, tmp_path, capsys):
+    (tmp_path / "go.mod").write_text("module demo\n", encoding="utf-8")
+
+    code = runner.main([str(tmp_path), "--what", "test", "--race", "--dry-run"])
+    out = capsys.readouterr().out
+
+    assert code == 0
+    assert "-race" in out
+
+
+def test_race_note_when_unsupported(runner, tmp_path, capsys):
+    (tmp_path / "package.json").write_text('{"scripts": {"test": "jest"}}', encoding="utf-8")
+
+    runner.main([str(tmp_path), "--what", "test", "--race", "--dry-run"])
+    out = capsys.readouterr().out
+
+    assert "no native flag" in out

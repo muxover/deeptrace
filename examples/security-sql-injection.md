@@ -1,6 +1,6 @@
 # Example: SQL injection via string-built query
 
-A DeepTrace Security analysis of a login lookup. Output follows the strict seven-part format.
+A worked DeepTrace analysis of a login lookup through the security lens. Output follows the DeepTrace format.
 
 ## Input code
 
@@ -18,7 +18,9 @@ async function findUser(username) {
 
 ## DeepTrace output
 
-### 1. Execution Trace
+**Verdict:** Critical SQL injection allows authentication bypass and data exfiltration. **Confidence: 92%** — injection is certain from the visible concatenation; multi-statement and exact driver behavior are not defined in provided context.
+
+### Execution trace
 
 1. Request body `{ username }` enters the route handler unvalidated.
 2. `findUser` interpolates `username` directly into the SQL string.
@@ -26,36 +28,32 @@ async function findUser(username) {
 4. The `OR '1'='1'` matches every row; `--` comments out the rest.
 5. `rows[0]` returns the first user in the table, which is often an admin.
 
-### 2. Identified Issues
+### Identified issues
 
 - Critical: SQL injection. Attacker-controlled `username` is concatenated into the query, allowing authentication bypass and arbitrary data access.
 - High: returning `role` from an attacker-selected row enables privilege escalation downstream if the caller trusts it.
 - Medium: no input validation on `username` (length, charset) before it reaches the data layer.
 
-### 3. Edge Case Analysis
+### Edge cases
 
 - `username` containing a single quote breaks the query even without malice, surfacing the vulnerability as ordinary errors.
 - Stacked queries (`'; DROP TABLE users; --`) succeed if the driver allows multiple statements. Whether `db.query` allows that is not defined in provided context.
 - Unicode or encoded quotes that bypass naive filters.
 
-### 4. Failure Scenarios
+### Failure scenarios
 
 - An attacker logs in as any user without a password, or dumps the table via a UNION-based payload.
 - A benign user with an apostrophe in their name triggers a 500, masking attacks in the noise.
 
-### 5. Security / Abuse Vectors
+### Security and abuse vectors
 
 - Authentication bypass: `' OR '1'='1' --`.
 - Data exfiltration: `' UNION SELECT password, role FROM users --`.
 - Blind extraction via boolean or time-based payloads if errors are suppressed.
 
-### 6. Performance Concerns
+### Performance
 
 - UNION and time-based payloads can run expensive scans, turning the endpoint into a cheap DoS lever.
-
-### 7. Confidence Score
-
-92%. Injection is certain from the visible concatenation. Multi-statement and exact driver behavior are not defined in provided context.
 
 ## Suggested fix
 

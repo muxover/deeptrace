@@ -42,3 +42,13 @@ def trace_go():
 @pytest.fixture(scope="session")
 def trace_rust():
     return load("trace_rust", "trace-rust.py")
+
+
+@pytest.fixture(scope="session")
+def trace_http():
+    return load("trace_http", "trace-http.py")
+
+
+@pytest.fixture(scope="session")
+def trace_ui():
+    return load("trace_ui", "trace-ui.py")

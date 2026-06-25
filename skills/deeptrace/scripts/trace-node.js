@@ -20,11 +20,32 @@ function parseArgs(argv) {
 
 function usage() {
   return [
-    "usage: node trace-node.js [--root DIR] [--output FILE] [--top N] <entry.js> [args...]",
+    "usage: node trace-node.js [--root DIR] [--output FILE] [--top N] <entry.js|.ts> [args...]",
     "",
-    "Runs a Node entry point under the V8 sampling profiler and prints the",
-    "project-scoped call tree, hot functions, and any uncaught error.",
+    "Runs a Node or TypeScript entry point under the V8 sampling profiler and prints",
+    "the project-scoped call tree, hot functions, and any uncaught error.",
   ].join("\n");
+}
+
+function enableTypeScript(target) {
+  if (!/\.(ts|tsx|mts|cts)$/.test(target)) return true;
+  try {
+    require.resolve("tsx");
+  } catch (e) {
+    console.error("error: TypeScript entry detected but the 'tsx' loader is not installed.");
+    console.error("install: npm i -D tsx   (or compile to JS first, then trace the output)");
+    return false;
+  }
+  try {
+    const { register } = require("node:module");
+    register("tsx/esm", pathToFileURL("./"));
+    require("tsx/cjs");
+  } catch (e) {
+    console.error(`error: could not enable the tsx loader: ${e.message}`);
+    console.error("note: tsx registration needs Node 20.6+; on older Node, compile to JS first.");
+    return false;
+  }
+  return true;
 }
 
 function toLocalPath(url) {
@@ -105,6 +126,8 @@ async function main() {
     return 2;
   }
   const root = opts.root ? path.resolve(opts.root) : path.dirname(target);
+
+  if (!enableTypeScript(target)) return 2;
 
   const session = new inspector.Session();
   session.connect();

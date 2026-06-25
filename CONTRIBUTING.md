@@ -1,10 +1,10 @@
 # Contributing
 
-DeepTrace is a set of Markdown agent skills plus a few helper scripts. If you can make the reasoning sharper, the output cleaner, or add an add-on skill that does something the core skill does not, please send it.
+DeepTrace is a single Markdown agent skill plus a few helper scripts. If you can make the reasoning sharper, the output cleaner, or extend a domain lens to cover something it misses, please send it.
 
 ## Getting started
 
-Clone the repo. There is no build step. Every skill is a `SKILL.md` file under `skills/`.
+Clone the repo. There is no build step. The skill is the `SKILL.md` file under `skills/deeptrace/`.
 
 ```bash
 git clone https://github.com/muxover/deeptrace.git
@@ -31,11 +31,11 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-## Adding or changing a skill
+## Changing the skill
 
-- Each skill lives in `skills/<name>/SKILL.md` with valid YAML frontmatter (`name`, `description`).
-- A new add-on skill should cover something the core `deeptrace` skill does not, not repeat it.
-- Keep the same output format so results read the same across skills.
+- The skill lives in `skills/deeptrace/SKILL.md` with valid YAML frontmatter (`name`, `description`).
+- A new domain lens should cover something the existing lenses do not, not repeat them.
+- Keep the same output format so results read the same every time.
 
 ## Submitting changes
 

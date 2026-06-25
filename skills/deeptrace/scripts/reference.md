@@ -25,6 +25,8 @@ python run.py /path/to/project --dry-run
 
 It knows Node (npm, pnpm, yarn, bun), Python (pytest), Go, Rust (cargo), and Make. Run `--dry-run` first to see the command; `--timeout` caps each one (300s by default).
 
+Pass `--race` to turn on the data-race detector where the stack supports it. Go runs under `-race`; other stacks have no native flag, so the runner says so and points you at `trace.py` thread tags (Node) or miri/loom (Rust).
+
 This runs the project's code. Only run code you trust, and use `--dry-run` on a repo you do not know.
 
 ## trace.py
@@ -49,7 +51,31 @@ node trace-node.js --top 50 --output trace.txt app/server.js arg1
 node trace-node.js --root /path/to/project src/index.js
 ```
 
-Flags go before the target, target arguments after. It handles both CommonJS and ESM entry points. The trace is sampled rather than exact, so a function that runs very briefly may not show up. When that matters, give it more work to do or step through it with `node --inspect-brk`. For TypeScript, compile to JS first or run it through a loader.
+Flags go before the target, target arguments after. It handles both CommonJS and ESM entry points. TypeScript entries (`.ts`, `.tsx`, `.mts`, `.cts`) run through the `tsx` loader when it is installed (`npm i -D tsx`); the script tells you when it is missing and you can compile to JS instead. The trace is sampled rather than exact, so a function that runs very briefly may not show up. When that matters, give it more work to do or step through it with `node --inspect-brk`.
+
+## trace-http.py
+
+Fires real HTTP requests against a running service and records the request/response contract: status, timing, content type, body size, and the JSON shape of the response. Stdlib only, nothing to install. Redirects are reported, not followed, so you see the real status.
+
+```bash
+python trace-http.py GET http://localhost:8080/users/1
+python trace-http.py POST http://localhost:8080/orders --json '{"item":"x"}' --header "Authorization: Bearer t"
+python trace-http.py --requests calls.json
+```
+
+`--header` is repeatable (`'Key: Value'`), `--json` sends a JSON body and sets the content type, `--data` sends a raw body. For a sequence, `--requests` takes a JSON file holding a list of `{method, url, headers, json|body}` objects and replays them in order — useful for retry, duplicate-submission, and idempotency checks. This sends real traffic to whatever URL you point it at.
+
+## trace-ui.py
+
+Loads a running UI in a real browser (Playwright + Chromium) and reports what actually happened: console warnings and errors, uncaught page errors, the network waterfall with status and timing, and DOM activity. DOM mutations are counted per element for any framework; React commit counts are added when React is present.
+
+```bash
+python trace-ui.py http://localhost:3000
+python trace-ui.py http://localhost:3000 --click "#submit" --click ".load-more" --duration 4000
+python trace-ui.py http://localhost:5173 --headed --output ui-trace.txt
+```
+
+`--click` is a CSS selector clicked after load (repeatable, in order), `--duration` is how long to observe afterward, and `--headed` shows the window. It needs Playwright (`pip install playwright && playwright install chromium`); when either the package or the browser is missing, the script says exactly what to install rather than failing silently. This drives a real browser against the URL you give it.
 
 ## trace-go.py
 

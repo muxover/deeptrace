@@ -1,6 +1,6 @@
 # Example: non-idempotent payment endpoint
 
-A DeepTrace API Audit of a charge endpoint. Output follows the strict seven-part format.
+A worked DeepTrace analysis of a charge endpoint through the API lens. Output follows the DeepTrace format.
 
 ## Input code
 
@@ -18,7 +18,9 @@ The client retries `POST /charge` on network timeout.
 
 ## DeepTrace output
 
-### 1. Execution Trace
+**Verdict:** Critical idempotency gap double-charges the user on any retry. **Confidence: 88%** — the gap is clear from the code; provider behavior on bad amounts and multi-statement effects are not defined in provided context.
+
+### Execution trace
 
 1. Client sends `POST /charge`; the request reaches `payments.create`, which charges the card.
 2. The network drops the response before the client receives it.
@@ -26,35 +28,31 @@ The client retries `POST /charge` on network timeout.
 4. The server has no record that this logical request already ran, so it calls `payments.create` again.
 5. The card is charged twice; two rows land in `charges`.
 
-### 2. Identified Issues
+### Identified issues
 
 - Critical: POST is not idempotent. A retry (client, proxy, or load balancer) double-charges the user. There is no idempotency key and no deduplication.
 - High: no input validation. `amountCents` is unchecked, so negative, zero, non-integer, or huge values pass straight through to the payment provider.
 - Medium: partial failure between `payments.create` and `db.insert` leaves a real charge with no local record, so reconciliation breaks.
 
-### 3. Edge Case Analysis
+### Edge cases
 
 - `amountCents` missing or `userId` absent: behavior is not defined in provided context; likely a provider-side error after partial work.
 - Concurrent duplicate submissions (double-click) race the same way as a retry.
 - `payments.create` succeeds but the process crashes before responding: the same double-charge on retry, plus no DB row.
 
-### 4. Failure Scenarios
+### Failure scenarios
 
 - A user on flaky mobile data is charged two or three times for one purchase, triggering chargebacks and support load.
 - A retry storm during an outage multiplies real charges across many users.
 
-### 5. Security / Abuse Vectors
+### Security and abuse vectors
 
 - Negative `amountCents` could credit an account if the provider or ledger treats it as a refund. Whether it does is not defined in provided context.
 - Replay of a captured request repeats the charge with no server-side guard.
 
-### 6. Performance Concerns
+### Performance
 
 - Each retry performs a full external payment call; under retry storms this saturates the provider rate limit and the connection pool.
-
-### 7. Confidence Score
-
-88%. The idempotency gap is clear from the code. Provider behavior on bad amounts and multi-statement effects are not defined in provided context.
 
 ## Suggested fix
 

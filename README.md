@@ -23,7 +23,7 @@ DeepTrace is an agent skill for Cursor and Claude Code. Most code review skims t
 - Reads the code as a developer, a user, an attacker, and under load.
 - Says "not defined in provided context" rather than inventing behavior it cannot see.
 - Reports findings in a fixed format with severities and a confidence score.
-- Has four optional add-on skills for security, performance, UI state, and APIs.
+- Carries security, performance, API, and UI lenses in one skill, so it traces any tool or interface.
 
 ---
 
@@ -57,19 +57,21 @@ If several components talk to each other, it follows the flow across them too.
 On a real project the agent runs these tools and reads their output. They are plain Python with nothing to install.
 
 - `recon.py` scans the project and reports its stacks, languages, entry points, biggest files, and TODO/FIXME notes.
-- `run.py` finds and runs the project's tests, build, or app (Python, Node, Go, Rust, or Make) and captures the output and exit code. Pass `--dry-run` to see the command first.
+- `run.py` finds and runs the project's tests, build, or app (Python, Node, Go, Rust, or Make) and captures the output and exit code. Pass `--dry-run` to see the command first, or `--race` to turn on the data-race detector where the stack supports it.
 - `trace.py` runs a Python entry point under `sys.settrace` and records the call graph, exceptions, and any threads it spawns.
-- `trace-node.js` runs a Node or JS entry point under the V8 profiler and prints the call tree and the hottest functions.
+- `trace-node.js` runs a Node, JS, or TypeScript entry point under the V8 profiler and prints the call tree and the hottest functions.
 - `trace-go.py` uses Delve to trace Go function calls in a program or test.
 - `trace-rust.py` profiles a Rust binary or test with `cargo flamegraph`, and falls back to a backtrace run when the profiler is not installed.
+- `trace-http.py` fires real requests at a running service and records the status, timing, and response shape — single calls or a replayed sequence for retry and idempotency checks. Stdlib only.
+- `trace-ui.py` loads a running UI in a real browser and reports console errors, the network waterfall, and DOM/render activity. Needs Playwright; it tells you what to install when it is missing.
 
-Python, JavaScript, Go, and Rust are first-class. For anything else the agent drives that language's own tracer; see [skills/deeptrace/scripts/reference.md](skills/deeptrace/scripts/reference.md). The runner executes your code, so only point it at code you trust.
+Python, JavaScript, TypeScript, Go, and Rust are first-class, with running services and UIs traced live over HTTP and a real browser. For anything else the agent drives that language's own tracer; see [skills/deeptrace/scripts/reference.md](skills/deeptrace/scripts/reference.md). These tools execute your code and send real traffic, so only point them at targets you trust.
 
 ---
 
 ## Examples
 
-Each one is a full analysis in the seven-part output format:
+Each one is a full analysis in the DeepTrace output format:
 
 - [race-condition.md](examples/race-condition.md): a check-then-act concurrency bug.
 - [security-sql-injection.md](examples/security-sql-injection.md): injection and auth bypass.
@@ -81,7 +83,7 @@ Each one is a full analysis in the seven-part output format:
 
 ## Installation
 
-Each skill is its own folder. Copy the one you want into your skills directory.
+The skill is a single folder. Copy it into your skills directory.
 
 Cursor (personal, all projects):
 
@@ -97,23 +99,11 @@ cp -r skills/deeptrace .cursor/skills/deeptrace
 
 Claude Code: place the skill folder under your Claude Code skills directory the same way.
 
-Install any expansion skill by swapping the folder name, for example `skills/deeptrace-security`.
-
 ---
 
 ## Usage
 
-Ask the agent to debug, audit, or trace something and the core `deeptrace` skill loads on its own. The add-on skills only load when you name them, for example "use deeptrace-security on this handler".
-
----
-
-## Skills
-
-- `deeptrace`: the core skill for tracing, edge cases, and failures. Loaded automatically.
-- `deeptrace-security`: injection, auth bypass, input fuzzing, leaked secrets.
-- `deeptrace-performance`: complexity, allocations, N+1 queries, lock contention, scaling.
-- `deeptrace-ui-simulation`: render and state transitions, async UI races, stale state.
-- `deeptrace-api-audit`: request and response shapes, status codes, idempotency, error contracts.
+Ask the agent to debug, audit, or trace something and the `deeptrace` skill loads on its own. It carries four domain lenses — security, performance, API, and UI — and leads with whichever the task points to. Name one to steer it, for example "use the security lens on this handler".
 
 ---
 
@@ -144,20 +134,18 @@ DeepTrace/
 │   ├── ui-stale-closure.md                UI state trace
 │   └── api-idempotency.md                 API audit trace
 └── skills/
-    ├── deeptrace/                         Core engine
-    │   ├── SKILL.md                       Spec + active investigation workflow
-    │   └── scripts/
-    │       ├── recon.py                   Static project map
-    │       ├── run.py                     Polyglot test/build/run runner
-    │       ├── trace.py                   Python runtime tracer
-    │       ├── trace-node.js              Node/JS runtime tracer
-    │       ├── trace-go.py                Go runtime tracer (Delve)
-    │       ├── trace-rust.py              Rust runtime tracer (flamegraph)
-    │       └── reference.md               Tool usage + cross-language tracing
-    ├── deeptrace-security/SKILL.md        Security and abuse focus
-    ├── deeptrace-performance/SKILL.md     Performance and scaling focus
-    ├── deeptrace-ui-simulation/SKILL.md   UI state focus
-    └── deeptrace-api-audit/SKILL.md       API contract focus
+    └── deeptrace/                         The skill
+        ├── SKILL.md                       Method, workflow, and domain lenses
+        └── scripts/
+            ├── recon.py                   Static project map
+            ├── run.py                     Polyglot test/build/run runner
+            ├── trace.py                   Python runtime tracer
+            ├── trace-node.js              Node/JS runtime tracer
+            ├── trace-go.py                Go runtime tracer (Delve)
+            ├── trace-rust.py              Rust runtime tracer (flamegraph)
+            ├── trace-http.py              HTTP request/response capture
+            ├── trace-ui.py                Browser UI runtime tracer (Playwright)
+            └── reference.md               Tool usage + cross-language tracing
 ```
 
 ---
@@ -170,9 +158,12 @@ The reasoning works for any language. The tooling is first-class for Python, Jav
 |------------|-------------|----------------------------------|-------------|
 | Static map (`recon.py`) | ~20 languages, 12 manifests | any text file | semantic/call-graph analysis |
 | Run tests/build (`run.py`) | Python, Go, JS, Rust, Make | any `Makefile` target | Bazel, custom toolchains, Docker-only setups |
-| Runtime trace | Python (`trace.py`), JS (`trace-node.js`), Go (`trace-go.py`), Rust (`trace-rust.py`) | JVM, Ruby via profilers | PHP, C/C++, C# deep tracing |
+| Runtime trace | Python (`trace.py`), JS/TS (`trace-node.js`), Go (`trace-go.py`), Rust (`trace-rust.py`) | JVM, Ruby via profilers | PHP, C/C++, C# deep tracing |
+| HTTP contract (`trace-http.py`) | any HTTP service | — | gRPC, WebSocket capture |
+| UI runtime (`trace-ui.py`) | any web UI via Chromium | other browsers via Playwright | native/mobile UIs |
+| Race detection (`run.py --race`) | Go (`-race`) | Rust via miri/loom (manual) | Python, Node (use thread tags) |
 
-Go tracing needs Delve, and Rust call-stack profiles need `cargo flamegraph`. Both are detected automatically, and Rust still runs with a backtrace fallback when the profiler is missing. There is no sandbox, no profiling dashboard, no runtime race detector, and no database or network inspection. The runner executes real code on your machine.
+Go tracing needs Delve, Rust call-stack profiles need `cargo flamegraph`, and UI tracing needs Playwright with Chromium. Each is detected automatically, with Rust falling back to a backtrace run and the UI and TypeScript tracers printing the exact install command when a dependency is missing. There is no sandbox and no profiling dashboard. These tools execute real code and send real traffic from your machine.
 
 ---
 

@@ -1,6 +1,6 @@
 # Example: check-then-act race condition
 
-A worked DeepTrace analysis of a small, realistic bug. The input is a Node.js withdrawal handler; the output follows the strict seven-part format.
+A worked DeepTrace analysis of a small, realistic bug. The input is a Node.js withdrawal handler; the output follows the DeepTrace format.
 
 ## Input code
 
@@ -23,7 +23,9 @@ The handler is invoked per HTTP request. `db.getAccount` and `db.updateBalance` 
 
 ## DeepTrace output
 
-### 1. Execution Trace
+**Verdict:** Critical check-then-act race between read and write allows overdraft and lost updates. **Confidence: 90%** — the race is clear from the code; whether `db.updateBalance` already runs in a transaction or applies an atomic decrement is not defined in provided context.
+
+### Execution trace
 
 Two requests `A` and `B` for the same `userId`, balance = 100, each withdrawing 100:
 
@@ -36,35 +38,31 @@ Two requests `A` and `B` for the same `userId`, balance = 100, each withdrawing 
 
 Both withdrawals succeed; 200 leaves the account but balance lands at 0 instead of -100 being rejected.
 
-### 2. Identified Issues
+### Identified issues
 
 - Critical: check-then-act (TOCTOU) race between `getAccount` and `updateBalance`. Concurrent requests read the same balance and both pass the guard, allowing overdraft.
 - High: last-writer-wins on `updateBalance`. A's write is silently overwritten by B; the decrement is computed from a stale read, so updates are lost even without an overdraft.
 - Medium: no atomicity across the read and write, so a crash between steps 1 and 5 leaves no record that the check ever happened.
 
-### 3. Edge Case Analysis
+### Edge cases
 
 - Exactly concurrent equal withdrawals draining to zero (traced above).
 - N concurrent small withdrawals each individually valid but collectively exceeding the balance.
 - `amount` negative or zero: not validated, so a negative amount increases the balance.
 - `account` undefined when `userId` does not exist: `account.balance` throws. How `getAccount` signals a missing user is not defined in provided context.
 
-### 4. Failure Scenarios
+### Failure scenarios
 
 - A user fires duplicate requests (double-click, retry, or scripted) and withdraws more than they hold.
 - Under load, lost updates cause the stored balance to drift above the true value, compounding the loss over time.
 
-### 5. Security / Abuse Vectors
+### Security and abuse vectors
 
 - Deliberate exploitation: an attacker sends many parallel withdrawal requests to force overdraft before any write lands. The wider the gap between read and write (network/DB latency), the larger the exploitable window.
 
-### 6. Performance Concerns
+### Performance
 
 - The fix (a transaction or atomic conditional update) adds serialization per account. Under high contention on a single hot account this becomes a throughput bottleneck, but correctness requires it.
-
-### 7. Confidence Score
-
-90%. The race is clear from the code. The only doubt is the unseen behavior of `db`: whether `updateBalance` already runs in a transaction or applies an atomic decrement is not defined in provided context.
 
 ## Suggested fix
 

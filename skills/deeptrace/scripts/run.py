@@ -54,6 +54,12 @@ def detect(root):
     return plans
 
 
+def with_race(cmd):
+    if len(cmd) >= 2 and cmd[0] == "go" and cmd[1] in ("test", "build"):
+        return [cmd[0], cmd[1], "-race"] + cmd[2:]
+    return None
+
+
 def resolve(cmd):
     exe = shutil.which(cmd[0])
     if exe is None:
@@ -88,6 +94,7 @@ def main(argv=None):
     parser.add_argument("path", nargs="?", default=".", help="project root")
     parser.add_argument("--what", choices=["test", "build", "run"], default="test")
     parser.add_argument("--timeout", type=int, default=300, help="per-command timeout in seconds")
+    parser.add_argument("--race", action="store_true", help="enable the data-race detector where the stack supports it")
     parser.add_argument("--dry-run", action="store_true", help="print detected commands without running")
     args = parser.parse_args(argv)
 
@@ -98,6 +105,17 @@ def main(argv=None):
     if not commands:
         print(f"no {args.what} command detected for this project")
         return 1
+
+    if args.race:
+        raced, applied = [], False
+        for cmd in commands:
+            variant = with_race(cmd)
+            raced.append(variant or cmd)
+            applied = applied or variant is not None
+        commands = raced
+        if not applied:
+            print("note: --race has no native flag for this stack. Go uses -race; "
+                  "for Node lean on trace.py thread tags, for Rust on miri or loom.")
 
     if args.dry_run:
         print(f"detected {args.what} commands:")
