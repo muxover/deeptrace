@@ -18,10 +18,11 @@ What you expected to happen.
 
 ## Environment
 
-- Skill name and version:
-- Agent (Cursor / Claude Code):
+- DeepTrace version:
+- Agent (Cursor / Claude Code) and version:
 - OS:
+- Tool involved (for example `trace.py`) and the exact command:
 
 ## Additional context
 
-Input given to the agent, output received, and anything else relevant.
+Input given to the agent, the output or error received, and anything else relevant.

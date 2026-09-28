@@ -4,6 +4,7 @@
 
 [![CI](https://github.com/muxover/deeptrace/actions/workflows/ci.yml/badge.svg)](https://github.com/muxover/deeptrace/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Claude Code plugin](https://img.shields.io/badge/Claude%20Code-plugin-8B5CF6.svg)](#installation)
 
 **Deep, evidence-based debugging skill for AI agents.**
 
@@ -54,18 +55,20 @@ If several components talk to each other, it follows the flow across them too.
 
 ## Toolkit
 
-On a real project the agent runs these tools and reads their output. They are plain Python with nothing to install.
+On a real project the agent runs these tools and reads their output. The Python tools use only the standard library; the UI, Go, and Rust tracers need Playwright, Delve, and `cargo flamegraph`, and each one prints the exact install command when its dependency is missing.
 
-- `recon.py` scans the project and reports its stacks, languages, entry points, biggest files, and TODO/FIXME notes.
-- `run.py` finds and runs the project's tests, build, or app (Python, Node, Go, Rust, or Make) and captures the output and exit code. Pass `--dry-run` to see the command first, or `--race` to turn on the data-race detector where the stack supports it.
-- `trace.py` runs a Python entry point under `sys.settrace` and records the call graph, exceptions, and any threads it spawns.
-- `trace-node.js` runs a Node, JS, or TypeScript entry point under the V8 profiler and prints the call tree and the hottest functions.
-- `trace-go.py` uses Delve to trace Go function calls in a program or test.
-- `trace-rust.py` profiles a Rust binary or test with `cargo flamegraph`, and falls back to a backtrace run when the profiler is not installed.
-- `trace-http.py` fires real requests at a running service and records the status, timing, and response shape — single calls or a replayed sequence for retry and idempotency checks. Stdlib only.
-- `trace-ui.py` loads a running UI in a real browser and reports console errors, the network waterfall, and DOM/render activity. Needs Playwright; it tells you what to install when it is missing.
+| Tool | What it gives the agent |
+|------|-------------------------|
+| `recon.py` | Stacks, languages, entry points (from names, manifests, and real `main` functions), biggest files, TODO/FIXME markers |
+| `run.py` | Runs tests, build, or app with the project's own package manager or virtualenv. Kills the whole process tree on timeout, passes extra args after `--`, and `--race` enables Go's race detector |
+| `trace.py` | Python call graph with arguments and return values, threads, and every exception labeled caught, uncaught, or exit |
+| `trace-node.js` | Sampled V8 call tree and hottest functions for Node and JavaScript |
+| `trace-go.py` | Delve function tracing scoped to your module, with call counts and goroutines seen |
+| `trace-rust.py` | `cargo flamegraph` with the hot frames printed as text, or a full-backtrace run of the binary or tests |
+| `trace-http.py` | Real request/response contract, sequence replay, and parallel repeats (`--repeat`, `--concurrency`) for race and idempotency checks |
+| `trace-ui.py` | Real browser run: console errors with source lines, network waterfall with real timings, DOM and React render activity, screenshots |
 
-Python, JavaScript, TypeScript, Go, and Rust are first-class, with running services and UIs traced live over HTTP and a real browser. For anything else the agent drives that language's own tracer; see [skills/deeptrace/scripts/reference.md](skills/deeptrace/scripts/reference.md). These tools execute your code and send real traffic, so only point them at targets you trust.
+Full usage is in [skills/deeptrace/scripts/reference.md](skills/deeptrace/scripts/reference.md). These tools execute your code and send real traffic, so only point them at targets you trust.
 
 ---
 
@@ -83,27 +86,43 @@ Each one is a full analysis in the DeepTrace output format:
 
 ## Installation
 
-The skill is a single folder. Copy it into your skills directory.
+### Claude Code (plugin)
 
-Cursor (personal, all projects):
-
-```bash
-cp -r skills/deeptrace ~/.cursor/skills/deeptrace
+```text
+/plugin marketplace add muxover/deeptrace
+/plugin install deeptrace@muxover
 ```
 
-Cursor (project, shared via the repo):
+Or from your shell: `claude plugin marketplace add muxover/deeptrace && claude plugin install deeptrace@muxover`.
+
+### Claude Code (manual)
 
 ```bash
-cp -r skills/deeptrace .cursor/skills/deeptrace
+git clone https://github.com/muxover/deeptrace.git
+cp -r deeptrace/skills/deeptrace ~/.claude/skills/deeptrace      # all projects
+cp -r deeptrace/skills/deeptrace .claude/skills/deeptrace        # this project only
 ```
 
-Claude Code: place the skill folder under your Claude Code skills directory the same way.
+### Cursor
+
+```bash
+cp -r deeptrace/skills/deeptrace ~/.cursor/skills/deeptrace      # all projects
+cp -r deeptrace/skills/deeptrace .cursor/skills/deeptrace        # this project only
+```
+
+The skill is one self-contained folder, so any agent that reads `SKILL.md`-style skills can use it the same way.
 
 ---
 
 ## Usage
 
-Ask the agent to debug, audit, or trace something and the `deeptrace` skill loads on its own. It carries four domain lenses — security, performance, API, and UI — and leads with whichever the task points to. Name one to steer it, for example "use the security lens on this handler".
+Ask the agent to debug, audit, or trace something and the `deeptrace` skill loads on its own. In Claude Code, call it directly with `/deeptrace` (or `/deeptrace:deeptrace` when installed as a plugin).
+
+It carries four domain lenses (security, performance, API, and UI) and leads with whichever the task points to. Name one to steer it:
+
+- "use deeptrace on the checkout flow, something double-charges on retry"
+- "use the security lens on this handler"
+- "why does this page freeze after the second click?"
 
 ---
 
@@ -114,19 +133,26 @@ DeepTrace/
 ├── README.md                              This file
 ├── LICENSE                                MIT license
 ├── CONTRIBUTING.md                        Contributor guide
+├── SECURITY.md                            Vulnerability reporting
 ├── .gitignore                             Ignored paths
 ├── .editorconfig                          Editor defaults
 ├── .markdownlint.json                     Markdown lint rules
 ├── pyproject.toml                         Ruff + pytest config
 ├── requirements-dev.txt                   Dev dependencies (pytest, ruff)
+├── CHANGELOG.md                           Release notes
+├── .claude-plugin/
+│   ├── plugin.json                        Claude Code plugin manifest
+│   └── marketplace.json                   One-command install
+├── docs/
+│   └── PROJECT.md                         Project state: decisions, status, next steps
 ├── .github/
 │   ├── PULL_REQUEST_TEMPLATE.md           PR template
 │   ├── ISSUE_TEMPLATE/
 │   │   ├── bug_report.md                  Bug report form
 │   │   └── feature_request.md             Feature request form
 │   └── workflows/
-│       └── ci.yml                         Markdown lint on push and PR
-├── tests/                                 Pytest suite for the toolkit
+│       └── ci.yml                         Lint, tests, and live tracer runs
+├── tests/                                 Pytest suite, including end-to-end tracer runs
 ├── examples/
 │   ├── race-condition.md                  Concurrency trace
 │   ├── security-sql-injection.md          Security audit trace
@@ -161,7 +187,7 @@ The reasoning works for any language. The tooling is first-class for Python, Jav
 | Runtime trace | Python (`trace.py`), JS/TS (`trace-node.js`), Go (`trace-go.py`), Rust (`trace-rust.py`) | JVM, Ruby via profilers | PHP, C/C++, C# deep tracing |
 | HTTP contract (`trace-http.py`) | any HTTP service | — | gRPC, WebSocket capture |
 | UI runtime (`trace-ui.py`) | any web UI via Chromium | other browsers via Playwright | native/mobile UIs |
-| Race detection (`run.py --race`) | Go (`-race`) | Rust via miri/loom (manual) | Python, Node (use thread tags) |
+| Race detection | Go (`run.py --race`), live services (`trace-http.py --concurrency`) | Rust via miri/loom, Python via thread-tagged traces | Node in-process races |
 
 Go tracing needs Delve, Rust call-stack profiles need `cargo flamegraph`, and UI tracing needs Playwright with Chromium. Each is detected automatically, with Rust falling back to a backtrace run and the UI and TypeScript tracers printing the exact install command when a dependency is missing. There is no sandbox and no profiling dashboard. These tools execute real code and send real traffic from your machine.
 
@@ -169,7 +195,7 @@ Go tracing needs Delve, Rust call-stack profiles need `cargo flamegraph`, and UI
 
 ## Limitations
 
-DeepTrace is a reasoning skill with a few helper tools, not a full debugger or static analyzer. The runner executes real project code, so only use it on code you trust and where running it is safe. Deterministic line-by-line tracing is Python-only; the other languages use sampling profilers or their own tracers, which can miss very short calls. The analysis is only as good as the code and output it sees, and the confidence score is the model's own estimate rather than a measurement. Check its findings before you act on them.
+DeepTrace is a reasoning skill with a few helper tools, not a full debugger or static analyzer. The runner executes real project code, so only use it on code you trust and where running it is safe. Deterministic line-by-line tracing is Python-only; the other languages use sampling profilers or their own tracers, which can miss very short calls. The Node tracer has known gaps (programs that end in `process.exit()`, ESM with top-level `await`, and TypeScript on Node 22+), listed with workarounds in the reference. The analysis is only as good as the code and output it sees, and the confidence score is the model's own estimate rather than a measurement. Check its findings before you act on them.
 
 ---
 
@@ -189,6 +215,7 @@ Licensed under the [MIT](LICENSE) license.
 
 - Repository: https://github.com/muxover/deeptrace
 - Issues: https://github.com/muxover/deeptrace/issues
+- Changelog: [CHANGELOG.md](CHANGELOG.md)
 
 ---
 

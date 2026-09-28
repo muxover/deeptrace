@@ -15,19 +15,40 @@ jobs:
         with:
           globs: "**/*.md"
 
-  scripts:
+  tests:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: pip install -r requirements-dev.txt
+      - run: ruff check .
+      - run: python -m compileall -q skills/deeptrace/scripts tests
+      - run: node --check skills/deeptrace/scripts/trace-node.js
+      - run: python -m pytest -q
+
+  live-tracers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install -r requirements-dev.txt
-      - run: ruff check .
-      - run: python -m compileall -q skills/deeptrace/scripts tests
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-go@v5
         with:
-          node-version: "20"
-      - run: node --check skills/deeptrace/scripts/trace-node.js
-      - run: pytest -q
+          go-version: stable
+      - run: go install github.com/go-delve/delve/cmd/dlv@latest
+      - run: pip install -r requirements-dev.txt playwright
+      - run: python -m playwright install --with-deps chromium
+      - name: Run tests with Delve and a real browser
+        run: python -m pytest -q -rs

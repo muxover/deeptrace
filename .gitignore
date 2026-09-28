@@ -16,6 +16,7 @@ __pycache__/
 .venv/
 *.pyc
 *.egg-info/
+dist/
 .pytest_cache/
 .ruff_cache/
 
@@ -34,3 +35,5 @@ trace.txt
 *.pem
 *.key
 credentials.*
+flamegraph.svg
+perf.data*

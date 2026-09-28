@@ -1,0 +1,13 @@
+{
+  "name": "deeptrace",
+  "version": "0.2.0",
+  "description": "Evidence-based debugging for AI agents: map the project, run it, trace what actually executes, then report findings tied to file:line.",
+  "author": {
+    "name": "Jax",
+    "url": "https://github.com/muxover"
+  },
+  "homepage": "https://github.com/muxover/deeptrace",
+  "repository": "https://github.com/muxover/deeptrace",
+  "license": "MIT",
+  "keywords": ["debugging", "tracing", "code-review", "security", "performance", "skill"]
+}

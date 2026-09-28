@@ -11,21 +11,24 @@ The core discipline is simple: look at the codebase, run it, and trace what actu
 
 ## Investigation workflow
 
-When investigating a real project (not an isolated snippet), work through this loop before writing the report. Use the bundled tools in `scripts/` alongside the agent's own file and shell access. The tools are stdlib-only Python; full usage is in [scripts/reference.md](scripts/reference.md).
+When investigating a real project (not an isolated snippet), work through this loop before writing the report. Use the bundled tools alongside your own file and shell access. Full usage is in [scripts/reference.md](scripts/reference.md).
 
-1. Map the system. Run `python scripts/recon.py <project>` to detect stacks, entry points, complexity hotspots, and TODO/FIXME markers. Read the entry points and the largest files. Build the state / transitions / triggers / outputs model from what is actually there.
-2. Run it. Run `python scripts/run.py <project> --dry-run` to see the detected commands, then `--what test` (or `build`/`run`) to execute and capture real output and exit codes. Treat failures and stack traces as primary evidence.
-3. Trace execution. Capture the real call graph and exceptions scoped to the project. DeepTrace flags go before the target; target arguments go after.
-   - Python: `python scripts/trace.py --args <entry>`
-   - Node/JS: `node scripts/trace-node.js <entry>`
-   - Go: `python scripts/trace-go.py <package> --func '.'`
-   - Rust: `python scripts/trace-rust.py <crate> --bin <name>`
-   - Running UI: `python scripts/trace-ui.py <url>` captures console errors, the network waterfall, and DOM/render activity from a real browser.
-   - Live HTTP service: `python scripts/trace-http.py <method> <url>` captures the real request/response contract; `--requests` replays a sequence for retry and idempotency checks.
+The tools live in `${CLAUDE_SKILL_DIR}/scripts`, next to this file. Your working directory is the project under investigation, so always call them by that path, never as `scripts/...`. If `${CLAUDE_SKILL_DIR}` appears unexpanded (agents other than Claude Code), substitute the absolute path of the folder containing this SKILL.md. Below, `$DT` stands for that scripts folder.
+
+1. Map the system. Run `python $DT/recon.py .` to detect stacks, entry points, complexity hotspots, and TODO/FIXME markers. Read the entry points and the largest files. Build the state / transitions / triggers / outputs model from what is actually there.
+2. Run it. Run `python $DT/run.py . --dry-run` to see the detected commands, then `--what test` (or `build`/`run`) to execute and capture real output and exit codes. Arguments after `--` go to the command (for example `-- -k test_login`). Treat failures and stack traces as primary evidence.
+3. Trace execution. Capture the real call graph and exceptions scoped to the project. DeepTrace flags go before the target; target arguments go after it (or after `--` for Go and Rust).
+   - Python: `python $DT/trace.py --args --returns <entry.py>` (or `-m <module>`). Exceptions are labeled caught, uncaught, or exit, so handled errors are not mistaken for crashes.
+   - Node/JS: `node $DT/trace-node.js <entry.js>` samples the call tree. Check its known limits in reference.md before trusting an empty result.
+   - Go: `python $DT/trace-go.py ./cmd/app` traces the module's own functions by default. Narrow it with `--func`.
+   - Rust: `python $DT/trace-rust.py . --bin <name>`, or `--unit-test` for the tests.
+   - Running UI: `python $DT/trace-ui.py <url>` captures console errors with source locations, the network waterfall with real timings, and DOM/render activity from a real browser. Drive interactions with `--click` and keep `--screenshot` to see the rendered state.
+   - Live HTTP service: `python $DT/trace-http.py <method> <url>` captures the real request/response contract. `--requests` replays a sequence, and `--repeat N --concurrency C` fires the same call in parallel to test races and idempotency.
    - Concurrency: add `--race` to `run.py` to run the data-race detector where the stack supports it (Go today).
    - Other stacks: drive the native tracer (see reference.md) through the shell and read the output.
 4. Confirm against source. Cross-check every observed behavior against the visible code. Anything you cannot confirm from code or trace output is "not defined in provided context."
 5. Analyze and report. Apply the analysis layers to what you observed, then emit the output format below.
+6. Verify the fix. When you change code, rerun the exact command or trace that exposed the bug and show that the evidence changed: the failing test passes, the exception is gone, the concurrent requests now agree. A fix without a before-and-after run is a hypothesis.
 
 ### Running untrusted code safely
 

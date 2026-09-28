@@ -8,7 +8,7 @@ Clone the repo. There is no build step. The skill is the `SKILL.md` file under `
 
 ```bash
 git clone https://github.com/muxover/deeptrace.git
-cd DeepTrace
+cd deeptrace
 ```
 
 ## Code style
@@ -24,12 +24,14 @@ Keep emoji out of headers, and keep the skill text short. Every line takes up ro
 
 ## Running tests
 
-There is a pytest suite for the scripts (recon, the runner, and the tracers):
+There is a pytest suite for the scripts (recon, the runner, and the tracers). Tests that need Node, Go with Delve, or Playwright with Chromium run when those are installed and skip otherwise; CI installs all of them.
 
 ```bash
 pip install -r requirements-dev.txt
-pytest
+python -m pytest
 ```
+
+When you fix a bug in a tool, add a regression test in `tests/test_regressions.py` that fails without the fix.
 
 ## Changing the skill
 
@@ -43,4 +45,4 @@ For anything bigger than a typo, open an issue first. Branch from `main`, keep o
 
 ## Reporting bugs
 
-Use the issue templates. Include the skill name, the input you gave the agent, the output you got, and what you expected instead.
+Use the issue templates. Include the DeepTrace version, your OS, the exact command or prompt, the error output, and what you expected instead.

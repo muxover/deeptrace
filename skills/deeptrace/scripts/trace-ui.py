@@ -76,6 +76,9 @@ def report(nav, console, errors, network, failures, activity, output):
     out.append("")
 
     out.append("DOM ACTIVITY")
+    if not activity:
+        activity = {"mutations": 0, "nodes": {}, "commits": 0, "react": False}
+        out.append("  (instrumentation unavailable: the page did not load)")
     out.append(f"  {activity['mutations']} mutations during observation")
     hot = sorted(activity["nodes"].items(), key=lambda kv: kv[1], reverse=True)
     out.extend([f"  {n:>5}  {sel}" for sel, n in hot[:15]])
@@ -100,6 +103,7 @@ def main(argv=None):
     parser.add_argument("--timeout", type=int, default=30, help="navigation timeout in seconds")
     parser.add_argument("--headed", action="store_true", help="show the browser window")
     parser.add_argument("--output", help="write the trace to a file instead of stdout")
+    parser.add_argument("--screenshot", help="save a full-page screenshot to this path after observation")
     args = parser.parse_args(argv)
 
     try:
@@ -113,10 +117,10 @@ def main(argv=None):
     console, errors, network, failures = [], [], [], []
 
     def on_finished(request):
-        timing = request.timing
-        end = timing.get("responseEnd", -1) if timing else -1
-        start = timing.get("startTime", 0) if timing else 0
-        ms = end - start if end >= 0 else None
+        # Playwright reports responseEnd already relative to startTime (startTime itself is epoch ms).
+        timing = request.timing or {}
+        end = timing.get("responseEnd", -1)
+        ms = end if end is not None and end >= 0 else None
         resp = request.response()
         network.append((request.method, resp.status if resp else None, request.url, ms))
 
@@ -132,8 +136,17 @@ def main(argv=None):
                 raise
             page = browser.new_page()
             page.add_init_script(INIT_SCRIPT)
-            page.on("console", lambda m: console.append((m.type, m.text)))
-            page.on("pageerror", lambda e: errors.append(str(e)))
+            def on_console(msg):
+                loc = msg.location or {}
+                where = f"  ({loc.get('url')}:{loc.get('lineNumber', 0) + 1})" if loc.get("url") else ""
+                console.append((msg.type, f"{msg.text}{where}"))
+
+            def on_pageerror(err):
+                stack = getattr(err, "stack", None) or str(err)
+                errors.append("\n    ".join(stack.strip().splitlines()[:4]))
+
+            page.on("console", on_console)
+            page.on("pageerror", on_pageerror)
             page.on("requestfinished", on_finished)
             page.on("requestfailed", lambda r: failures.append((r.method, r.url, r.failure)))
 
@@ -152,7 +165,15 @@ def main(argv=None):
                     errors.append(f"click {selector!r} failed: {exc}")
 
             page.wait_for_timeout(args.duration)
-            activity = page.evaluate("() => window.__DT__")
+            try:
+                activity = page.evaluate("() => window.__DT__ || null")
+            except Exception:
+                activity = None
+            if args.screenshot:
+                try:
+                    page.screenshot(path=args.screenshot, full_page=True)
+                except Exception as exc:
+                    errors.append(f"screenshot failed: {exc}")
             browser.close()
     except Exception as exc:
         print(f"error: {exc}", file=sys.stderr)

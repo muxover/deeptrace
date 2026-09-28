@@ -1,0 +1,15 @@
+{
+  "name": "muxover",
+  "description": "Developer tools by Jax (muxover)",
+  "owner": {
+    "name": "Jax",
+    "url": "https://github.com/muxover"
+  },
+  "plugins": [
+    {
+      "name": "deeptrace",
+      "source": "./",
+      "description": "Evidence-based debugging skill: map, run, and trace a real project before drawing conclusions."
+    }
+  ]
+}

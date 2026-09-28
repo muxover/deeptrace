@@ -1,9 +1,15 @@
 #!/usr/bin/env python3
 import argparse
+import hashlib
 import json
+import ssl
 import time
 import urllib.error
 import urllib.request
+from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
+
+MAX_BODY = 10 * 1024 * 1024
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -52,17 +58,22 @@ def shape(text, ctype):
     return kind(data)
 
 
-def do_request(method, url, headers, body, timeout):
-    opener = urllib.request.build_opener(NoRedirect)
+def do_request(method, url, headers, body, timeout, insecure=False):
+    handlers = [NoRedirect]
+    if insecure:
+        handlers.append(urllib.request.HTTPSHandler(context=ssl._create_unverified_context()))
+    opener = urllib.request.build_opener(*handlers)
     req = urllib.request.Request(url, data=body, method=method.upper(), headers=headers or {})
     start = time.perf_counter()
     try:
         resp = opener.open(req, timeout=timeout)
-        status, reason, hdrs, content = resp.status, resp.reason, resp.headers, resp.read()
+        status, reason, hdrs, content = resp.status, resp.reason, resp.headers, resp.read(MAX_BODY)
     except urllib.error.HTTPError as exc:
-        status, reason, hdrs, content = exc.code, exc.reason, exc.headers, exc.read()
+        status, reason, hdrs, content = exc.code, exc.reason, exc.headers, exc.read(MAX_BODY)
     except urllib.error.URLError as exc:
         return {"method": method.upper(), "url": url, "error": str(exc.reason)}
+    except OSError as exc:  # timeouts, resets
+        return {"method": method.upper(), "url": url, "error": str(exc)}
     elapsed = (time.perf_counter() - start) * 1000
     ctype = hdrs.get("Content-Type", "")
     return {
@@ -75,10 +86,13 @@ def do_request(method, url, headers, body, timeout):
         "bytes": len(content),
         "location": hdrs.get("Location"),
         "shape": shape(content.decode("utf-8", "replace"), ctype),
+        "digest": hashlib.sha1(content).hexdigest()[:10],
+        "preview": content[:300].decode("utf-8", "replace"),
+        "headers": dict(hdrs.items()),
     }
 
 
-def format_result(result):
+def format_result(result, show_headers=False):
     if "error" in result:
         return [f"{result['method']} {result['url']}", f"  failed: {result['error']}"]
     lines = [
@@ -91,7 +105,40 @@ def format_result(result):
         lines.append(f"  location: {result['location']}")
     if result["shape"]:
         lines.append(f"  body: {result['shape']}")
+    if show_headers:
+        lines.extend(f"  < {k}: {v}" for k, v in result["headers"].items())
+    if result["status"] >= 400 and result["preview"].strip():
+        lines.append(f"  error body: {result['preview'].strip()[:300]}")
     return lines
+
+
+def percentile(values, pct):
+    ordered = sorted(values)
+    return ordered[min(len(ordered) - 1, int(round(pct / 100 * (len(ordered) - 1))))]
+
+
+def burst(request, repeat, concurrency, timeout, insecure):
+    method, url, headers, body = request
+    with ThreadPoolExecutor(max_workers=max(1, concurrency)) as pool:
+        results = list(pool.map(lambda _: do_request(method, url, headers, body, timeout, insecure), range(repeat)))
+    ok = [r for r in results if "error" not in r]
+    lines = [f"{method.upper()} {url}  x{repeat} (concurrency {concurrency})"]
+    statuses = Counter(r["status"] for r in ok)
+    lines.append("  statuses: " + ", ".join(f"{s} x{n}" for s, n in sorted(statuses.items())))
+    errors = Counter(r["error"] for r in results if "error" in r)
+    for err, n in errors.items():
+        lines.append(f"  failed x{n}: {err}")
+    if ok:
+        times = [r["elapsed"] for r in ok]
+        lines.append(f"  latency ms: min {min(times):.0f}  p50 {percentile(times, 50):.0f}  "
+                     f"p95 {percentile(times, 95):.0f}  max {max(times):.0f}")
+        bodies = Counter(r["digest"] for r in ok)
+        verdict = "all identical" if len(bodies) == 1 else "responses diverged under repetition"
+        lines.append(f"  distinct response bodies: {len(bodies)} ({verdict})")
+        if method.upper() not in ("GET", "HEAD", "OPTIONS"):
+            lines.append("  note: for a state-changing call, identical results can mean lost updates and different "
+                         "ones can mean duplicate side effects. Read the resulting state before concluding.")
+    return lines, [r.get("status") for r in results]
 
 
 def load_sequence(path):
@@ -119,6 +166,10 @@ def main(argv=None):
     parser.add_argument("--requests", help="JSON file with a list of requests to replay in order")
     parser.add_argument("--timeout", type=int, default=30, help="per-request timeout in seconds")
     parser.add_argument("--output", help="write the report to a file instead of stdout")
+    parser.add_argument("--repeat", type=int, default=1, help="send each request N times (idempotency/race checks)")
+    parser.add_argument("--concurrency", type=int, default=1, help="with --repeat, how many requests in flight at once")
+    parser.add_argument("--show-headers", action="store_true", help="print response headers")
+    parser.add_argument("--insecure", action="store_true", help="skip TLS verification (local self-signed certs)")
     args = parser.parse_args(argv)
 
     if args.requests:
@@ -138,13 +189,20 @@ def main(argv=None):
     out = ["HTTP CAPTURE", "=" * 12, ""]
     statuses = []
     for method, url, headers, body in requests:
-        result = do_request(method, url, headers, body, args.timeout)
-        out.extend(format_result(result))
+        if args.repeat > 1:
+            lines, codes = burst((method, url, headers, body), args.repeat, args.concurrency, args.timeout,
+                                 args.insecure)
+            out.extend(lines)
+            statuses.extend(codes)
+        else:
+            result = do_request(method, url, headers, body, args.timeout, args.insecure)
+            out.extend(format_result(result, args.show_headers))
+            statuses.append(result.get("status"))
         out.append("")
-        statuses.append(result.get("status"))
 
     ok = sum(1 for s in statuses if s and 200 <= s < 400)
-    out.append(f"SUMMARY: {len(statuses)} request(s), {ok} under 400, statuses {statuses}")
+    dist = ", ".join(f"{s if s else 'failed'} x{n}" for s, n in Counter(statuses).most_common())
+    out.append(f"SUMMARY: {len(statuses)} request(s), {ok} under 400 ({dist})")
 
     text = "\n".join(out)
     if args.output:
