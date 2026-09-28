@@ -19,7 +19,7 @@ The tools live in `${CLAUDE_SKILL_DIR}/scripts`, next to this file. Your working
 2. Run it. Run `python $DT/run.py . --dry-run` to see the detected commands, then `--what test` (or `build`/`run`) to execute and capture real output and exit codes. Arguments after `--` go to the command (for example `-- -k test_login`). Treat failures and stack traces as primary evidence.
 3. Trace execution. Capture the real call graph and exceptions scoped to the project. DeepTrace flags go before the target; target arguments go after it (or after `--` for Go and Rust).
    - Python: `python $DT/trace.py --args --returns <entry.py>` (or `-m <module>`). Exceptions are labeled caught, uncaught, or exit, so handled errors are not mistaken for crashes.
-   - Node/JS: `node $DT/trace-node.js <entry.js>` samples the call tree. Check its known limits in reference.md before trusting an empty result.
+   - Node/JS/TS: run the entry under Node's own profiler, `node --cpu-prof --cpu-prof-dir=<tmp> <entry.js>` (add `--import tsx` for TypeScript), then read the `.cpuprofile` it writes. See reference.md for how to read it.
    - Go: `python $DT/trace-go.py ./cmd/app` traces the module's own functions by default. Narrow it with `--func`.
    - Rust: `python $DT/trace-rust.py . --bin <name>`, or `--unit-test` for the tests.
    - Running UI: `python $DT/trace-ui.py <url>` captures console errors with source locations, the network waterfall with real timings, and DOM/render activity from a real browser. Drive interactions with `--click` and keep `--screenshot` to see the rendered state.

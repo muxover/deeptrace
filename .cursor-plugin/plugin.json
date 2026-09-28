@@ -9,12 +9,5 @@
   "homepage": "https://github.com/muxover/deeptrace",
   "repository": "https://github.com/muxover/deeptrace",
   "license": "MIT",
-  "keywords": [
-    "debugging",
-    "tracing",
-    "code-review",
-    "security",
-    "performance",
-    "skill"
-  ]
+  "keywords": ["debugging", "tracing", "code-review", "security", "performance", "skill"]
 }

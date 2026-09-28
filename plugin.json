@@ -1,4 +1,5 @@
 {
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "deeptrace",
   "version": "0.3.0",
   "description": "Evidence-based debugging for AI agents: map the project, run it, trace what actually executes, then report findings tied to file:line.",
@@ -9,12 +10,5 @@
   "homepage": "https://github.com/muxover/deeptrace",
   "repository": "https://github.com/muxover/deeptrace",
   "license": "MIT",
-  "keywords": [
-    "debugging",
-    "tracing",
-    "code-review",
-    "security",
-    "performance",
-    "skill"
-  ]
+  "keywords": ["debugging", "tracing", "code-review", "security", "performance", "skill"]
 }

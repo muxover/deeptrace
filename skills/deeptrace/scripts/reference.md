@@ -1,6 +1,6 @@
 # DeepTrace tools
 
-A handful of small scripts that let the agent dig into a real project instead of guessing from a snippet. The Python tools need only the standard library (Python 3.9+); the UI tracer adds Playwright, the Go tracer Delve, and the Rust profiler `cargo flamegraph`. Each one says exactly what to install when a dependency is missing.
+A handful of small scripts that let the agent dig into a real project instead of guessing from a snippet. The Python tools need only the standard library (Python 3.9+); the UI tracer adds Playwright, the Go tracer Delve, and the Rust profiler `cargo flamegraph`; Node uses its own built-in profiler. Each one says exactly what to install when a dependency is missing.
 
 The scripts live in this folder (`${CLAUDE_SKILL_DIR}/scripts` in Claude Code). Call them by that path and point them at the project; they do not need to be copied into it.
 
@@ -57,26 +57,19 @@ Put DeepTrace flags before the target; anything after the target is handed to th
 
 `--lines` adds line-level events, `--max-depth` cuts noise, and `--max-events` caps memory (200000 by default). `--root` sets the scope (the target's directory by default, or the working directory with `-m`), and `--exclude DIR` drops a directory from it. Threads the program spawns are traced too and tagged with the thread name, which is usually how races and ordering bugs show up.
 
-## trace-node.js
+## Node, JavaScript, and TypeScript
 
-Runs a Node entry point under the V8 sampling profiler (the built-in `inspector` module, nothing to install) and prints the project's call tree, the busiest functions, and any uncaught error.
+There is no bundled Node tracer; Node's built-in CPU profiler does the job and works in every case a wrapper can break: CommonJS and ES modules, top-level `await`, programs that end with `process.exit()`, and TypeScript through `tsx`.
 
 ```bash
-node trace-node.js app/server.js
-node trace-node.js --top 50 --output trace.txt app/server.js arg1
-node trace-node.js --root /path/to/project src/index.js
+node --cpu-prof --cpu-prof-dir=/tmp/prof app/server.js arg1
+node --import tsx --cpu-prof --cpu-prof-dir=/tmp/prof src/index.ts
+node --cpu-prof --cpu-prof-interval 100 --cpu-prof-dir=/tmp/prof app.js    # finer sampling (microseconds)
 ```
 
-Flags go before the target, target arguments after. The trace is sampled rather than exact, so a function that runs very briefly may not show up. When that matters, give it more work to do or step through it with `node --inspect-brk`.
+Each run writes a `.cpuprofile` file when the process exits. It is JSON: `nodes` is the sampled call tree, and each node has a `callFrame` (`functionName`, `url`, `lineNumber`, zero-based) and a `hitCount` (samples taken while that function itself was running). To find the hot path, keep the nodes whose `url` is inside the project, add up `hitCount` per function, and walk `children` to see who called what. The same file opens in Chrome DevTools (Performance panel) for a visual flame chart.
 
-Known limits of the current version:
-
-- If the program ends with `process.exit()`, the report is lost. Trace an entry that returns normally.
-- ES modules that use top-level `await` may not run under the tracer.
-- TypeScript loading through `tsx` fails on recent Node versions (22+). Compile to JS first and trace the output.
-- A function called from several places appears once per call site in the hot list, so add those rows up.
-
-When any of these bite, Node's built-in profiler is a reliable fallback: run `node --cpu-prof app.js` and read the `.cpuprofile` it writes.
+Sampling misses very short functions. When that matters, give the code path more work, or step through it with `node --inspect-brk`. A long-running server writes its profile only when it exits, so stop it with Ctrl+C (SIGINT) once the traffic you care about has run.
 
 ## trace-http.py
 

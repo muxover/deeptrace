@@ -4,14 +4,15 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_call:
 
 jobs:
   markdownlint:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: DavidAnson/markdownlint-cli2-action@v16
+      - uses: actions/checkout@v7
+      - uses: DavidAnson/markdownlint-cli2-action@v24
         with:
           globs: "**/*.md"
 
@@ -23,30 +24,29 @@ jobs:
       matrix:
         python-version: ["3.9", "3.11", "3.13"]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
       - run: pip install -r requirements-dev.txt
       - run: ruff check .
       - run: python -m compileall -q skills/deeptrace/scripts tests
-      - run: node --check skills/deeptrace/scripts/trace-node.js
       - run: python -m pytest -q
 
   live-tracers:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
-          python-version: "3.12"
-      - uses: actions/setup-go@v5
+          python-version: "3.13"
+      - uses: actions/setup-go@v7
         with:
           go-version: stable
+          cache: false
       - run: go install github.com/go-delve/delve/cmd/dlv@latest
       - run: pip install -r requirements-dev.txt playwright
       - run: python -m playwright install --with-deps chromium

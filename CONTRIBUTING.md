@@ -24,7 +24,7 @@ Keep emoji out of headers, and keep the skill text short. Every line takes up ro
 
 ## Running tests
 
-There is a pytest suite for the scripts (recon, the runner, and the tracers). Tests that need Node, Go with Delve, or Playwright with Chromium run when those are installed and skip otherwise; CI installs all of them.
+There is a pytest suite for the scripts (recon, the runner, and the tracers). Tests that need Go with Delve or Playwright with Chromium run when those are installed and skip otherwise; CI installs all of them.
 
 ```bash
 pip install -r requirements-dev.txt

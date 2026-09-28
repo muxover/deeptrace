@@ -6,6 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-28
+
+### Added
+
+- Codex plugin (`plugin.json`, `.agents/plugins/marketplace.json`): `codex plugin marketplace add muxover/deeptrace`.
+- Cursor plugin (`.cursor-plugin/`) for **Customize → From GitHub Repository**.
+- Install for any skills-aware agent with `npx skills add muxover/deeptrace`.
+- Release notes for every version and a release workflow that runs CI, then creates the GitHub release from them.
+- A test that keeps the version identical across every plugin manifest and the changelog.
+
+### Changed
+
+- The Claude Code marketplace is named `deeptrace`; install with `deeptrace@deeptrace`.
+- Node, JavaScript, and TypeScript are profiled with `node --cpu-prof`, which covers `process.exit()`, ES modules with top-level `await`, and `tsx`.
+- CI uses the current action versions and can be called from the release workflow.
+
+### Removed
+
+- `trace-node.js`, replaced by Node's built-in profiler.
+
 ## [0.2.0] - 2026-09-28
 
 ### Added
@@ -43,6 +63,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Toolkit: `recon.py`, `run.py`, and tracers for Python, Node, Go, Rust, live HTTP services, and browser UIs.
 - Five worked examples.
 
-[Unreleased]: https://github.com/muxover/deeptrace/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/muxover/deeptrace/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/muxover/deeptrace/releases/tag/v0.3.0
 [0.2.0]: https://github.com/muxover/deeptrace/releases/tag/v0.2.0
 [0.1.0]: https://github.com/muxover/deeptrace/releases/tag/v0.1.0
